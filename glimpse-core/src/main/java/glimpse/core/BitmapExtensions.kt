@@ -1,10 +1,12 @@
 package glimpse.core
 
 import android.graphics.*
+import android.util.TimingLogger
 import glimpse.core.ArrayUtils.generateEmptyTensor
 import org.tensorflow.lite.Interpreter
 import kotlin.math.max
 import kotlin.math.min
+
 
 fun Bitmap.crop(
     centerX: Float,
@@ -50,10 +52,10 @@ fun Bitmap.debugHeatMap(
     scaledBitmap.getPixels(pixels, 0, scaledBitmap.width, 0, 0, scaledBitmap.width, scaledBitmap.height)
 
     // setup tensors
-    val input = generateEmptyTensor(1, 3, scaledBitmap.height, scaledBitmap.width)
+    val input = generateEmptyTensor(1, scaledBitmap.height, scaledBitmap.width, 3)
     MathUtils.populateTensorFromPixels(input, pixels)
 
-    val output = generateEmptyTensor(1, 1, scaledBitmap.height / 8, scaledBitmap.width / 8)
+    val output = generateEmptyTensor(1, scaledBitmap.height / 8, scaledBitmap.width / 8, 1)
 
     val intpr = Interpreter(rawModel, Interpreter.Options().apply {
         setNumThreads(1)
@@ -64,7 +66,7 @@ fun Bitmap.debugHeatMap(
     intpr.close()
 
     // calculate tempered softmax
-    val flattened = output[0][0].flattened()
+    val flattened = output[0].flattened()
     val softmaxed = MathUtils.softMax(flattened, temperature = temperature)
     val reshaped = softmaxed.reshape(output[0][0].size, output[0][0][0].size)
 
@@ -107,27 +109,35 @@ fun Bitmap.findCenter(
     temperature: Float = 0.15f,
     lowerBound: Float = 0.25f
 ): Pair<Float, Float> {
+    val timings = TimingLogger("GlimpseDebug", "predict")
     // resize bitmap to make process faster and better
     val scaledBitmap = Bitmap.createScaledBitmap(this, 320, 240, false)
     val pixels = IntArray(scaledBitmap.width * scaledBitmap.height)
     scaledBitmap.getPixels(pixels, 0, scaledBitmap.width, 0, 0, scaledBitmap.width, scaledBitmap.height)
+    timings.addSplit("scale input")
 
     // setup tensors
-    val input = generateEmptyTensor(1, 3, scaledBitmap.height, scaledBitmap.width)
+    val input = generateEmptyTensor(1, scaledBitmap.height, scaledBitmap.width, 3)
     MathUtils.populateTensorFromPixels(input, pixels)
-
-    val output = generateEmptyTensor(1, 1, scaledBitmap.height / 8, scaledBitmap.width / 8)
+    val output = generateEmptyTensor(1, scaledBitmap.height / 8, scaledBitmap.width / 8, 1)
+    timings.addSplit("setup tensors")
 
     val intpr = Interpreter(rawModel, Interpreter.Options().apply {
-        setNumThreads(1)
+        setNumThreads(8)
+        this.setAllowFp16PrecisionForFp32(true)
     })
+    timings.addSplit("init interpreter")
     intpr.run(input, output)
+    timings.addSplit("inference")
     intpr.close()
 
     // calculate tempered softmax
-    val flattened = output[0][0].flattened()
+    val flattened = output[0].flattened()
     val softmaxed = MathUtils.softMax(flattened, temperature = temperature)
     val reshaped = softmaxed.reshape(output[0][0].size, output[0][0][0].size)
+    timings.addSplit("post-process")
+
+    timings.dumpToLog()
 
     // get averaged center
     return MathUtils.getLargestFocusArea(reshaped[0][0], lowerBound = lowerBound)
