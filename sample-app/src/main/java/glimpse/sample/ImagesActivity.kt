@@ -1,5 +1,7 @@
 package glimpse.sample
 
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.*
 import android.widget.ImageView
@@ -9,6 +11,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.vansuita.pickimage.bean.PickResult
 import com.vansuita.pickimage.bundle.PickSetup
 import com.vansuita.pickimage.dialog.PickImageDialog
@@ -20,6 +23,7 @@ import glimpse.sample.ImagesActivity.Companion.spanCountKey
 import kotlinx.android.synthetic.main.activity_images.*
 import kotlinx.android.synthetic.main.fragment_images.*
 import kotlinx.android.synthetic.main.item_image_landscape.view.*
+import java.util.*
 
 
 class ImagesActivity : AppCompatActivity(), IPickResult {
@@ -156,6 +160,7 @@ class ImagesFragment : Fragment() {
 
 private class ImagesAdapter(private val layoutRes: Int, var config: Config, val onUrlClick: (String) -> Unit) :
     RecyclerView.Adapter<ImagesAdapter.ImageViewHolder>() {
+    private val rnd = Random()
 
     class ImageViewHolder(view: View) : RecyclerView.ViewHolder(view)
 
@@ -181,10 +186,13 @@ private class ImagesAdapter(private val layoutRes: Int, var config: Config, val 
                 .centerCrop()
                 .into(imageView)
         } else {
+            val color =
+                ColorDrawable(Color.argb(50, rnd.nextInt(128) + 128, rnd.nextInt(128) + 128, rnd.nextInt(128) + 128))
+
             GlideApp.with(imageView.context)
-                //.asBitmap()
                 .load(urlsSample[position])
-                .placeholder(R.drawable.ic_camera)
+                .diskCacheStrategy(DiskCacheStrategy.DATA)
+                .placeholder(color)
                 .transform(GlimpseTransformation())
                 .into(imageView)
 /*                .into(object : CustomViewTarget<ImageView, Bitmap>(imageView) {
