@@ -1,6 +1,5 @@
 package glimpse.sample
 
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.*
 import android.widget.ImageView
@@ -10,18 +9,14 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.request.target.SimpleTarget
-import com.bumptech.glide.request.transition.Transition
 import com.vansuita.pickimage.bean.PickResult
 import com.vansuita.pickimage.bundle.PickSetup
 import com.vansuita.pickimage.dialog.PickImageDialog
 import com.vansuita.pickimage.listeners.IPickResult
+import glimpse.glide.GlimpseTransformation
 import glimpse.sample.ImagesActivity.Companion.configKey
 import glimpse.sample.ImagesActivity.Companion.resLayoutKey
 import glimpse.sample.ImagesActivity.Companion.spanCountKey
-import glimpse.sample.thread_executor.CropperManager
-import glimpse.sample.thread_executor.CropperResultUpdateTask
-import glimpse.sample.thread_executor.CropperTask
 import kotlinx.android.synthetic.main.activity_images.*
 import kotlinx.android.synthetic.main.fragment_images.*
 import kotlinx.android.synthetic.main.item_image_landscape.view.*
@@ -187,16 +182,24 @@ private class ImagesAdapter(private val layoutRes: Int, var config: Config, val 
                 .into(imageView)
         } else {
             GlideApp.with(imageView.context)
-                .asBitmap()
+                //.asBitmap()
                 .load(urlsSample[position])
-                .into(object : SimpleTarget<Bitmap>() {
+                .placeholder(R.drawable.ic_camera)
+                .transform(GlimpseTransformation())
+                .into(imageView)
+/*                .into(object : CustomViewTarget<ImageView, Bitmap>(imageView) {
                     override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                        val drUpdateTask = CropperResultUpdateTask(imageView)
-
-                        val downloadTask = CropperTask(resource, drUpdateTask)
+                        val downloadTask = CropperTask(resource, CropperResultUpdateTask(imageView))
                         CropperManager.runDownloadFile(downloadTask)
                     }
-                })
+
+                    override fun onLoadFailed(errorDrawable: Drawable?) {
+                    }
+
+                    override fun onResourceCleared(placeholder: Drawable?) {
+                        placeholder?.toString()
+                    }
+                })*/
         }
     }
 }

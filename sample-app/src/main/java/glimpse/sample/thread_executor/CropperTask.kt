@@ -9,8 +9,8 @@ class CropperTask(private val original: Bitmap, private val resultUpdateTask: Cr
     override fun run() {
         val (x, y) = original.findCenter()
         val cropped = original.crop(x, y, resultUpdateTask.imageView.width, resultUpdateTask.imageView.height)
-        resultUpdateTask.setBackgroundBitmap(cropped)
 
+        resultUpdateTask.setBackgroundBitmap(cropped)
         CropperManager.mainThreadExecutor.execute(resultUpdateTask)
     }
 }
