@@ -3,6 +3,7 @@
 package glimpse.core
 
 import android.graphics.*
+import android.util.TimingLogger
 import glimpse.core.ArrayUtils.generateEmptyTensor
 import org.tensorflow.lite.Interpreter
 import java.nio.ByteBuffer
@@ -116,11 +117,11 @@ fun Bitmap.debugHeatMap(
         }
 }
 
-private val intpreter by lazy {
-    Interpreter(rawModel, Interpreter.Options().apply {
-        setNumThreads(1)
-    })
-}
+internal fun newInterpreter() = Interpreter(rawModel, Interpreter.Options().apply {
+    setNumThreads(1)
+})
+
+internal var intpreter: Interpreter? = null
 
 @Synchronized
 fun Interpreter.runThreadSafe(inputBuffer: ByteBuffer, output: Array<Array<Array<FloatArray>>>) {
@@ -133,28 +134,30 @@ fun Bitmap.findCenter(
     temperature: Float = 0.2f,
     lowerBound: Float = 0.25f
 ): Pair<Float, Float> {
+    val timings = TimingLogger("GlimpseDebug", "predict")
     // resize bitmap to make process faster and better
     val scaledBitmap = Bitmap.createScaledBitmap(this, 176, 176, false)
     val pixels = IntArray(scaledBitmap.width * scaledBitmap.height)
     scaledBitmap.getPixels(pixels, 0, scaledBitmap.width, 0, 0, scaledBitmap.width, scaledBitmap.height)
-
+    timings.addSplit("prepare bitmap")
     // setup tensors
     val output = generateEmptyTensor(1, 1, scaledBitmap.height / 8, scaledBitmap.width / 8)
-
+    timings.addSplit("prepare tensors")
     val inputBuffer: ByteBuffer = ByteBuffer.allocateDirect(1 * 176 * 176 * 3 * 4).apply {
         order(ByteOrder.nativeOrder())
     }
     pixels.forEach { pixel -> inputBuffer.putFloat((pixel shr 16 and 0xFF) / 255f) }
     pixels.forEach { pixel -> inputBuffer.putFloat((pixel shr 8 and 0xFF) / 255f) }
     pixels.forEach { pixel -> inputBuffer.putFloat((pixel and 0xFF) / 255f) }
-
-    intpreter.runThreadSafe(inputBuffer, output)
-
+    timings.addSplit("prepare input")
+    intpreter?.runThreadSafe(inputBuffer, output)
+    timings.addSplit("inference")
     // calculate tempered softmax
     val flattened = output[0][0].flattened()
     val softmaxed = MathUtils.softMax(flattened, temperature = temperature)
     val reshaped = softmaxed.reshape(output[0][0].size, output[0][0][0].size)
-
+    timings.addSplit("output ops")
+    timings.dumpToLog()
     // get averaged center
     return MathUtils.getLargestFocusArea(reshaped[0][0], lowerBound = lowerBound)
 }
